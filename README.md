@@ -17,6 +17,9 @@ uv run python -m app.scripts.create_admin --name "Your Name" --email admin@brigh
 uv run fastapi dev app/main.py   # API on http://localhost:8000
 ```
 
+New to the project? Read the [knowledge transfer guide](docs/KNOWLEDGE_TRANSFER.md): why each API
+exists and how the code is layered.
+
 Interactive API docs: http://localhost:8000/docs. Log in with `POST /api/auth/login`, then click
 **Authorize** and paste the `access_token`.
 
