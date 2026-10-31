@@ -28,3 +28,21 @@ uv run alembic upgrade head # create tables (+ sample data)
 | Drop everything | `uv run alembic downgrade base` |
 | New migration | `uv run alembic revision -m "message"` |
 | Current version | `uv run alembic current` |
+
+## Viewing the database in DBeaver
+
+1. Start DBeaver from the app menu, or run `dbeaver-ce &` in a terminal.
+2. Click **Database → New Database Connection**, choose **PostgreSQL**, click **Next**, and enter:
+
+   | Field | Value |
+   |---|---|
+   | Host | `localhost` |
+   | Port | `5432` |
+   | Database | `brightloop` |
+   | Username | `brightloop` |
+   | Password | the `POSTGRES_PASSWORD` value from your `.env` |
+
+3. Tick **Save password**, click **Test Connection** (download the driver if asked), then click **Finish**.
+4. Browse the tables under **brightloop → Databases → brightloop → Schemas → public → Tables**. To see the diagram, right-click **Tables** and choose **View Diagram**.
+
+If you changed the values in `.env`, use those instead. Postgres must be running (`docker compose up -d`).
