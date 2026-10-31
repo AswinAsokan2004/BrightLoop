@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { api, hasSession, logout, type User } from "./lib/api"
+import { navigate } from "./lib/navigation"
 import Auth from "./components/Auth"
 import { Attributes } from "./components/CatalogExtras"
 import { Button, Card, ErrorMessage } from "./components/ui"
@@ -164,19 +165,19 @@ export default function App() {
             <button
               key={name}
               title={name}
-              aria-label={name}
+              aria-label={name === "Quotations" ? "Quotation templates" : name}
               aria-current={page === name ? "page" : undefined}
               onClick={() => {
                 setPage(name)
                 setMobile(false)
-                history.pushState(null, "", name === "Overview" ? "/" : name === "Profile" ? "/portal" : `${customer ? "/portal" : ""}/${name.toLowerCase()}`)
+                navigate(name === "Overview" ? "/" : name === "Profile" ? "/portal" : `${customer ? "/portal" : ""}/${name.toLowerCase()}`)
               }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold ${
                 page === name ? "bg-teal-50 text-teal-800" : "hover:bg-slate-50"
               }`}
             >
               <Icon className="size-5 shrink-0" />
-              {!collapsed && name}
+              {!collapsed && (name === "Quotations" ? "Quotation templates" : name)}
             </button>
           ))}
         </nav>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode, type FormEvent } from "react"
+import { useEffect, useRef, useState, type ReactNode, type FormEvent } from "react"
 import { X } from "lucide-react"
 import { api, title, type Row } from "../lib/api"
 export function Button({
@@ -61,19 +61,22 @@ export function Badge({ value }: { value: string }) {
     </span>
   )
 }
-export function useLoad<T>(url: string | null, revision = 0) {
+export function useLoad<T>(url: string | null, revision = 0, keepPrevious = false) {
   const [state, setState] = useState<{
     data: T | null
     loading: boolean
     error: string
   }>({ data: null, loading: true, error: "" })
+  const previousUrl = useRef<string | null>(null)
   useEffect(() => {
     if (!url) {
       setState({ data: null, loading: false, error: "" })
       return
     }
     let current = true
-    setState({ data: null, loading: true, error: "" })
+    const sameUrl = previousUrl.current === url
+    previousUrl.current = url
+    setState(previous => ({ data: keepPrevious && sameUrl ? previous.data : null, loading: true, error: "" }))
     api<T>(url)
       .then((data) => {
         if (current) setState({ data, loading: false, error: "" })
@@ -85,7 +88,7 @@ export function useLoad<T>(url: string | null, revision = 0) {
     return () => {
       current = false
     }
-  }, [url, revision])
+  }, [url, revision, keepPrevious])
   return state
 }
 export type Field = {
@@ -343,6 +346,9 @@ export function Table({
               className={`border-b last:border-0 ${
                 select ? "cursor-pointer hover:bg-teal-50" : ""
               }`}
+              tabIndex={select ? 0 : undefined}
+              aria-label={select ? `Open ${String(row.number || row.name || row.id)}` : undefined}
+              onKeyDown={event => { if (select && ["Enter", " "].includes(event.key)) { event.preventDefault(); select(row) } }}
               onClick={() => select?.(row)}
             >
               {columns.map((c) => (

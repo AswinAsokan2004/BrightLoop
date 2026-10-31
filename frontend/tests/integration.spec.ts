@@ -62,21 +62,20 @@ test("admin creates a contract, invoices, collects payment and reloads persisted
     .selectOption({ label: "Test CRM" })
   await dialog.getByRole("button", { name: "Save", exact: true }).click()
   await expect(dialog).toHaveCount(0)
-  await page.getByRole("row").filter({ hasText: "SUB/" }).first().click()
-  dialog = page.getByRole("dialog")
-  for (const name of ["Quotation", "Confirmed", "Active"]) {
-    await dialog.getByRole("button", { name, exact: true }).click()
-    await expect(dialog.getByRole("button", { name, exact: true })).toHaveCount(
-      0,
-    )
+  const workspace=page.getByRole("article",{name:"Quotation and subscription details"})
+  await expect(workspace).toBeVisible()
+  await workspace.getByRole("button",{name:"Create quotation",exact:true}).click()
+  for (const name of ["Confirm quotation","Activate subscription"]) {
+    await workspace.getByRole("button",{name,exact:true}).click()
+    const confirmation=page.getByRole("dialog",{name,exact:true})
+    await confirmation.getByRole("button",{name,exact:true}).click()
+    await expect(confirmation).toHaveCount(0)
   }
-  const invoiceRequest = page.waitForResponse(
-    (r) => r.url().includes("/invoices") && r.request().method() === "POST",
-  )
-  await dialog.getByRole("button", { name: "Invoice next period" }).click()
+  const invoiceRequest=page.waitForResponse(r=>r.url().includes("/invoices")&&r.request().method()==="POST")
+  await workspace.getByRole("button",{name:"Invoice next period",exact:true}).click()
+  await page.getByRole("dialog",{name:"Generate draft invoice"}).getByRole("button",{name:"Generate draft invoice",exact:true}).click()
   expect((await invoiceRequest).status()).toBe(201)
-  await dialog.getByRole("button", { name: "Close dialog" }).click()
-  await navigate(page, "Invoices")
+  await navigate(page,"Invoices")
   await page.getByRole("row").filter({ hasText: "INV/" }).first().click()
   dialog = page.getByRole("dialog")
   await dialog
@@ -170,4 +169,21 @@ test("server validation is shown in the form and a failed save retains input", a
   await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(
     "Invalid dates",
   )
+})
+
+test("invalid login shows an error and allows retry with the correct password", async ({ page }) => {
+  await page.goto("/")
+  await page.getByLabel("Email", { exact: true }).fill("integration@example.com")
+  await page.getByLabel("Password", { exact: true }).fill("Wrong!Password123")
+  const rejected = page.waitForResponse(response =>
+    response.url().endsWith("/api/auth/login") && response.request().method() === "POST")
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
+  expect((await rejected).status()).toBe(401)
+  await expect(page.getByText("Invalid email or password", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0)
+  await expect(page.getByLabel("Email", { exact: true })).toHaveValue("integration@example.com")
+  await page.getByLabel("Password", { exact: true }).fill("Integration!Pass123")
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible()
+  await expect(page.getByText("Invalid email or password", { exact: true })).toHaveCount(0)
 })

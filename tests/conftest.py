@@ -87,3 +87,15 @@ def bootstrapped_postgres(migrated_postgres):
         "--email", "admin@brightloop.com", "--password", TEST_PASSWORD,
     )
     return migrated_postgres
+
+
+@pytest.fixture
+def client(tmp_path):
+    from fastapi.testclient import TestClient
+    from tests.browser_api import create_test_app
+    app = create_test_app(tmp_path / 'test.sqlite')
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.dependency_overrides.clear()

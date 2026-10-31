@@ -246,6 +246,8 @@ type Line = {
   variant_id: string
   quantity: string
   unit_price: string
+  description?: string
+  tax_ids?: number[]
 }
 export function LinesEditor({
   products,
@@ -366,6 +368,8 @@ export function serializeLines(lines: Line[]) {
     product_id: Number(l.product_id),
     ...(l.variant_id ? { variant_id: Number(l.variant_id) } : {}),
     quantity: Number(l.quantity),
+    ...(l.description !== undefined ? {description: l.description} : {}),
+    ...(l.tax_ids !== undefined ? {tax_ids: l.tax_ids} : {}),
     ...(l.unit_price !== "" ? { unit_price: l.unit_price } : {}),
   }))
 }
@@ -469,7 +473,7 @@ export function ResourcePage({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-navy-900">{name}</h1>
+          <h1 className="text-3xl font-bold text-navy-900">{name === "Quotations" ? "Quotation templates" : name}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {name === "Quotations"
               ? "Reusable quotation templates. Create a subscription from a template in Subscriptions."

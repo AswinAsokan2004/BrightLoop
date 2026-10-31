@@ -1,17 +1,4 @@
 """Real API/service workflows through an isolated SQLite adapter; no production DB needed."""
-import pytest
-from fastapi.testclient import TestClient
-from tests.browser_api import create_test_app
-
-
-@pytest.fixture
-def client(tmp_path):
-    app = create_test_app(tmp_path / 'test.sqlite')
-    with TestClient(app) as client:
-        yield client
-    app.dependency_overrides.clear()
-
-
 def authenticate(client, email='integration@example.com', password='Integration!Pass123'):
     result = client.post('/api/auth/login', json={'email': email, 'password': password})
     assert result.status_code == 200, result.text

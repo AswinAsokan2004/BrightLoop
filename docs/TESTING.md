@@ -32,7 +32,7 @@ Start PostgreSQL, then run:
 uv run pytest --postgres
 ```
 
-This includes the normal tests and five PostgreSQL cases:
+This includes the normal tests and six PostgreSQL cases:
 
 1. Apply `alembic upgrade head`; verify schema, seed records, billing uniqueness constraint and
    safe repeat migration execution.
@@ -45,6 +45,10 @@ This includes the normal tests and five PostgreSQL cases:
    refresh rotation and logout.
 5. Race four billing runs and two payments. Assert each billing period is invoiced exactly once
    and concurrent payment attempts cannot exceed the outstanding balance.
+
+6. Reproduce the seeded admin’s placeholder-password login rejection, set a real password through
+   the prompted CLI, verify successful admin login, then change the password and verify the old
+   password is rejected without creating a duplicate user.
 
 The fixture reads admin connection settings from `.env`, creates a random
 `brightloop_test_<uuid>` database for each test, and always closes/removes it in fixture cleanup.
@@ -85,3 +89,25 @@ customer navigation, staff write restrictions, and failed-form validation/input 
 
 Ports 8100 and 5174 must be free. These checks validate browser interactions with actual backend
 services, but they do not validate PostgreSQL locks; those are covered separately by `--postgres`.
+
+## Subscription workspace coverage
+
+`tests/test_subscription_workspace.py` verifies named detail data, readable plan policies for
+portal owners, restricted related-invoice filtering, expired quotation revision and line tax
+information. The PostgreSQL suite also exercises the expanded read schemas against real PostgreSQL.
+
+`frontend/tests/subscriptions.test.mjs` checks plan/role/state action availability, inclusive quote
+validity dates, renewal eligibility, and exact Decimal-string preview arithmetic. The browser suite
+covers the full-page route/reload/back behavior, template-based pricing, editing without losing
+custom descriptions/taxes, linked invoices, actor history, pause/resume/renew/close confirmations,
+expired-quote blocking and customer-only scoped reads. The expiry display case intercepts a detail
+response to exercise the UI; backend expiry rejection is tested separately against actual services.
+
+## Login regression coverage
+
+The browser suite checks that an incorrect password produces the API’s `Invalid email or password`
+message, leaves the user signed out, retains the email, and allows a successful retry. The real
+PostgreSQL setup regression above uses only disposable test accounts and databases.
+
+GitHub login and commit-author configuration are developer workstation settings, rather than
+application behavior; they are verified separately and are not embedded in automated app tests.

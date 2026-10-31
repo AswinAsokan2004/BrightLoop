@@ -61,8 +61,9 @@ def my_invoices(
     paging: Paging,
     state: InvoiceState | None = None,
     outstanding: bool = False,
+    subscription_id: int | None = None,
 ):
-    items, total = InvoiceService(db).list(paging, state=state, customer_id=customer_id, outstanding=outstanding)
+    items, total = InvoiceService(db).list(paging, state=state, customer_id=customer_id, outstanding=outstanding, subscription_id=subscription_id)
     return to_page(InvoiceSummary, items, total, paging)
 
 

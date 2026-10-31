@@ -102,3 +102,47 @@ def test_real_postgres_api(bootstrapped_postgres, mode):
     # Separate processes avoid leaking SQLite compiler/type overrides into PostgreSQL checks.
     result = run_command(bootstrapped_postgres, "-m", "tests.postgres_workflow", mode)
     assert json.loads(result.stdout)["passed"] == mode
+
+
+def test_seeded_admin_login_requires_password_setup(migrated_postgres):
+    """Reproduce the placeholder-password failure, then exercise the documented repair."""
+    probe = '''
+import json, os
+from fastapi.testclient import TestClient
+from app.main import app
+with TestClient(app) as client:
+    response = client.post('/api/auth/login', json={
+        'email': 'admin@brightloop.com', 'password': os.environ['LOGIN_PROBE_PASSWORD'],
+    })
+    result = {'status': response.status_code}
+    if response.status_code == 200:
+        me = client.get('/api/auth/me', headers={
+            'Authorization': 'Bearer ' + response.json()['access_token'],
+        })
+        result['role'] = me.json()['role']
+    else:
+        assert 'Invalid email or password' in response.text
+        assert 'access_token' not in response.text
+    print(json.dumps(result))
+'''
+    def login(password):
+        result = run_command({**migrated_postgres, 'LOGIN_PROBE_PASSWORD': password}, '-c', probe)
+        return json.loads(result.stdout)
+
+    assert login(TEST_PASSWORD) == {'status': 401}
+    run_command(
+        migrated_postgres, '-m', 'app.scripts.create_admin',
+        '--name', 'Claimed Admin', '--email', 'admin@brightloop.com',
+        input_text=TEST_PASSWORD + '\n',
+    )
+    assert login(TEST_PASSWORD) == {'status': 200, 'role': 'admin'}
+    replacement = 'Replacement!Pass456'
+    run_command(
+        migrated_postgres, '-m', 'app.scripts.create_admin',
+        '--name', 'Claimed Admin', '--email', 'admin@brightloop.com',
+        input_text=replacement + '\n',
+    )
+    assert login(TEST_PASSWORD) == {'status': 401}
+    assert login(replacement) == {'status': 200, 'role': 'admin'}
+    with connect(migrated_postgres) as db:
+        assert db.execute("SELECT count(*) FROM users WHERE email='admin@brightloop.com'").fetchone()[0] == 1

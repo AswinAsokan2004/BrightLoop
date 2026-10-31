@@ -183,3 +183,21 @@ and `SMTP_PASSWORD` in `.env` to send real email.
 4. Browse the tables under **brightloop → Databases → brightloop → Schemas → public → Tables**. To see the diagram, right-click **Tables** and choose **View Diagram**.
 
 If you changed the values in `.env`, use those instead. Postgres must be running (`docker compose up -d`).
+
+## Quotation and subscription workspace
+
+Open **Subscriptions** and select a record to view `/subscriptions/{id}`. Customer accounts use
+`/portal/subscriptions/{id}`. The workspace shows named customer/plan information, quotation
+validity, agreed product/variant lines with tax and discount breakdowns, plan policies and billing
+dates. Overview, Invoices and Activity tabs keep contract details, linked invoices and state
+history together. Quotation Templates remains a separate configuration screen.
+
+Available actions follow state, role and plan policy. Confirmation, activation, pause/resume,
+closure, renewal and next-period invoicing use the existing service rules. Confirmation dialogs
+explain consequential actions. Quotes can be edited only in draft/quotation, and expired quotes
+must return to draft before a fresh quotation can be confirmed. Preview totals reflect the last
+saved calculation; invoices remain authoritative and recalculate discounts/taxes at billing time.
+
+Subscription read responses now include named, scoped customer/plan/payment-term context and
+product/variant/actor labels. The portal invoice list accepts `subscription_id` while retaining
+customer ownership filters. These changes are additive and require no database migration.

@@ -5,14 +5,20 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models import Plan, Subscription, SubscriptionLine
+from app.models import Plan, Subscription, SubscriptionLine, SubscriptionStateLog
 from app.models.enums import SubscriptionState
 from app.repositories.base import BaseRepository
 
 _DETAIL = (
     selectinload(Subscription.lines).selectinload(SubscriptionLine.taxes),
-    selectinload(Subscription.state_logs),
+    selectinload(Subscription.lines).selectinload(SubscriptionLine.product),
+    selectinload(Subscription.lines).selectinload(SubscriptionLine.variant),
+    selectinload(Subscription.state_logs).selectinload(SubscriptionStateLog.changed_by_user),
     selectinload(Subscription.plan),
+    selectinload(Subscription.customer),
+    selectinload(Subscription.payment_term),
+    selectinload(Subscription.quotation_template),
+    selectinload(Subscription.salesperson),
 )
 
 
@@ -31,7 +37,11 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             select(Subscription)
             .where(Subscription.id == subscription_id)
             .with_for_update(skip_locked=skip_locked)
-            .options(*_DETAIL, selectinload(Subscription.payment_term))
+            .options(
+                selectinload(Subscription.lines).selectinload(SubscriptionLine.taxes),
+                selectinload(Subscription.plan),
+                selectinload(Subscription.payment_term),
+            )
             .execution_options(populate_existing=True)
         )
 
@@ -57,7 +67,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             stmt = stmt.where(Subscription.number.ilike(f"%{q}%"))
         if expiring_before:
             stmt = stmt.where(Subscription.expiry_date <= expiring_before)
-        return self.paginate(stmt, page, size)
+        return self.paginate(stmt, page, size, options=(selectinload(Subscription.customer), selectinload(Subscription.plan)))
 
     def due_ids(self, run_date: date) -> list[int]:
         """Uses the (state, next_invoice_date) index."""
