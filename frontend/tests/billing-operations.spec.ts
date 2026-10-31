@@ -285,3 +285,26 @@ test("billing request failures advise checking history and allow preview refresh
     page.getByRole("button", { name: "Run billing", exact: true }),
   ).toBeEnabled();
 });
+
+test("running billing runs block retry until refreshed results arrive", async ({ page, request }) => {
+  const { call } = await seed(request);
+  const run = await call("/billing/run", { run_date: day() });
+  let running = true;
+  await page.route(`**/api/billing/runs/${run.id}`, async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    if (running) { body.status = "running"; body.finished_at = null; }
+    await route.fulfill({ response, json: body });
+  });
+  await signIn(page);
+  await page.goto(`/billing/runs/${run.id}`);
+  const results = page.getByRole("article", { name: "Billing run details", exact: true });
+  await expect(results.getByRole("status")).toContainText("This run is marked as running");
+  const retry = results.getByRole("button", { name: "Preview this date again", exact: true });
+  await expect(retry).toBeDisabled();
+  running = false;
+  await results.getByRole("button", { name: "Refresh run", exact: true }).click();
+  await expect(results.getByText("Completed", { exact: true })).toBeVisible();
+  await expect(retry).toBeEnabled();
+  await expect(results.getByRole("status")).toHaveCount(0);
+});

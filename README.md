@@ -241,3 +241,30 @@ may still be processing. Billing remains synchronous; invoice confirmation/sendi
 New read-only staff endpoints: `/api/billing/preview`, `/api/billing/runs/{id}/invoices`, and
 `/api/billing/runs/{id}/failures`. Restart the backend if it is not using automatic reload.
 No database migration is required.
+
+### Customer add-on management
+
+On an active owned subscription, customers can open **Subscriptions → select subscription → Add-ons**
+to search available products/variants, select quantities, review prices and confirm changes.
+The selected tab survives reload. Admins offer products by choosing **Product type: Add-on** and
+keeping **Recurring** and **Active** enabled. Only those products and active variants appear in
+the portal; cost prices, internal notes and other customers' records are excluded.
+
+Approved billing policy: **next unbilled period, no proration**. The confirmation shows the exact
+starting date. If billing is behind, this includes remaining unbilled catch-up periods from that
+date; the UI warns about this. Existing invoices and payments are never rewritten. Each saved
+selection replaces the customer-managed add-on lines used by subsequent billing. Base agreement
+lines remain protected. Existing add-ons retain their stored unit price when quantities change;
+newly enabled items use catalog prices, interpreted in the subscription currency without conversion.
+Taxes and automatic discount availability are recalculated when invoicing; review totals are estimates.
+
+Paused, closed, expired and exhausted contracts are read-only for add-ons. Changes preserve plan
+minimum quantities and are recorded with before/after selections, actor and effective period.
+A stale review after pricing or billing changes must be reviewed again. Subscription row locks
+serialize changes with billing and concurrent customer edits.
+
+Migration required when updating another checkout: `uv run alembic upgrade head` (revision `0003`).
+It adds an add-on marker to subscription lines and an audit history table. Existing lines default
+to protected base lines. In this prepared checkout use `../analysis-venv/bin/python -m alembic upgrade head`.
+Customer endpoints under `/api/portal/subscriptions/{id}`: `GET/PUT addons`, `POST addons/preview`,
+`GET addon-options`, and `GET addon-history`.

@@ -473,7 +473,10 @@ export function ResourcePage({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-navy-900">{name === "Quotations" ? "Quotation templates" : name}</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-navy-900">{name === "Quotations" ? "Quotation templates" : name}</h1>
+            {name === "Products" && <p className="mt-2 text-sm text-slate-500">Active recurring products with type Add-on are available for customers to manage on their own subscriptions.</p>}
+          </div>
           <p className="mt-1 text-sm text-slate-500">
             {name === "Quotations"
               ? "Reusable quotation templates. Create a subscription from a template in Subscriptions."

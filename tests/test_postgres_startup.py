@@ -24,9 +24,9 @@ def connect(env):
 
 def test_migrations_create_schema_and_seed_once(migrated_postgres):
     with connect(migrated_postgres) as db:
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0002"
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0003"
         tables = db.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'").fetchone()[0]
-        assert tables == 33  # 32 domain tables plus Alembic's version table
+        assert tables == 34  # 33 domain tables plus Alembic's version table
         before = db.execute("SELECT count(*) FROM invoices").fetchone()[0]
         assert before > 0
         assert db.execute("SELECT count(*) FROM pg_constraint WHERE conname='uq_invoices_subscription_id_period_start'").fetchone()[0] == 1
@@ -156,3 +156,8 @@ def test_finance_with_thousands_of_records_responds_under_two_seconds(bootstrapp
     assert all(seconds < 2 for seconds in measured['billing_seconds'])
     print('Finance PostgreSQL timings:', measured['seconds'])
     print('Billing preview PostgreSQL timings:', measured['billing_seconds'])
+
+
+def test_addon_changes_and_billing_are_serialized_on_postgres(bootstrapped_postgres):
+    result = run_command(bootstrapped_postgres, '-m', 'tests.addons_postgres')
+    assert json.loads(result.stdout)['passed'] == 'addons-concurrency'

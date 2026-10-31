@@ -32,7 +32,7 @@ Start PostgreSQL, then run:
 uv run pytest --postgres
 ```
 
-This includes the normal tests and seven PostgreSQL cases:
+This includes the normal tests and eight PostgreSQL cases:
 
 1. Apply `alembic upgrade head`; verify schema, seed records, billing uniqueness constraint and
    safe repeat migration execution.
@@ -164,3 +164,29 @@ and retry behavior is covered in the API tests. All actual billing calls use dis
 The PostgreSQL concurrency worker checks that each run links exactly its own generated invoices
 and leaves no due work after all runs finish. The existing 3,000-record benchmark also measures
 first/deep-page billing previews, each required to return in under two seconds on the test machine.
+
+Additional billing regressions check that a preview does not reserve work: a subscription paused
+before execution is not billed. A stale schedule pointing to a cancelled invoice skips that period,
+creates only missing periods, and later clears an exhausted schedule without generating an invoice
+or closing a plan that has automatic closure disabled. The browser suite also verifies that a run
+marked running blocks retry until refreshed completed results arrive.
+
+## Customer add-on coverage
+
+`tests/test_addons.py` covers active recurring offers/variants, safe portal fields, quantity/pricing
+validation, duplicate/base item rejection, pagination, owner isolation, protected contract lines,
+minimum quantities, stored prices, retired items, paused/expired/exhausted contracts, previews
+without mutation, history and existing-invoice preservation. It verifies that the next generated
+invoice includes the confirmed selection, removals affect later billing, and stale catalog or
+billing-date reviews fail before writing changes.
+
+`frontend/tests/addons.spec.ts` covers selecting a variant, quantity changes, price/tax review,
+explicit confirmation, removal, history, tab reload, stale-price recovery, read-only paused
+contracts, scoped requests, and mobile overflow. Actual workflow requests use the isolated API.
+The full integration flow now selects its own generated invoice rather than relying on global
+invoice ordering across independent browser cases.
+
+The eighth PostgreSQL case exercises migration 0003 plus concurrent customer edits and concurrent
+invoice generation. Only one stale competing edit may succeed. Billing must see either the
+confirmed new selection or the previous selection with a rejected stale change; original invoice
+snapshots and history consistency are asserted. These concurrency checks use a disposable test DB.

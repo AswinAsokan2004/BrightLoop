@@ -87,6 +87,7 @@ class SubscriptionTemplateRead(NameRead):
 
 class SubscriptionLineRead(ORMModel):
     id: int
+    is_addon: bool
     product_id: int
     variant_id: int | None
     description: str | None
