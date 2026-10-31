@@ -5,14 +5,20 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models import Plan, Subscription, SubscriptionLine
+from app.models import Plan, Subscription, SubscriptionLine, SubscriptionStateLog
 from app.models.enums import SubscriptionState
 from app.repositories.base import BaseRepository
 
 _DETAIL = (
     selectinload(Subscription.lines).selectinload(SubscriptionLine.taxes),
-    selectinload(Subscription.state_logs),
+    selectinload(Subscription.lines).selectinload(SubscriptionLine.product),
+    selectinload(Subscription.lines).selectinload(SubscriptionLine.variant),
+    selectinload(Subscription.state_logs).selectinload(SubscriptionStateLog.changed_by_user),
     selectinload(Subscription.plan),
+    selectinload(Subscription.customer),
+    selectinload(Subscription.payment_term),
+    selectinload(Subscription.quotation_template),
+    selectinload(Subscription.salesperson),
 )
 
 
@@ -31,7 +37,11 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             select(Subscription)
             .where(Subscription.id == subscription_id)
             .with_for_update(skip_locked=skip_locked)
-            .options(*_DETAIL, selectinload(Subscription.payment_term))
+            .options(
+                selectinload(Subscription.lines).selectinload(SubscriptionLine.taxes),
+                selectinload(Subscription.plan),
+                selectinload(Subscription.payment_term),
+            )
             .execution_options(populate_existing=True)
         )
 
@@ -57,31 +67,43 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             stmt = stmt.where(Subscription.number.ilike(f"%{q}%"))
         if expiring_before:
             stmt = stmt.where(Subscription.expiry_date <= expiring_before)
-        return self.paginate(stmt, page, size)
+        return self.paginate(
+            stmt, page, size, options=(selectinload(Subscription.customer), selectinload(Subscription.plan))
+        )
+
+    @staticmethod
+    def due_statement(run_date: date):
+        """Shared by the read-only preview and billing worker candidate selection."""
+        return select(Subscription).where(
+            Subscription.state == SubscriptionState.active,
+            Subscription.next_invoice_date <= run_date,
+        )
 
     def due_ids(self, run_date: date) -> list[int]:
         """Uses the (state, next_invoice_date) index."""
         return list(
             self.db.scalars(
-                select(Subscription.id)
-                .where(
-                    Subscription.state == SubscriptionState.active,
-                    Subscription.next_invoice_date <= run_date,
-                )
-                .order_by(Subscription.id)
+                self.due_statement(run_date).with_only_columns(Subscription.id).order_by(Subscription.id)
+            )
+        )
+
+    @staticmethod
+    def auto_close_statement(run_date: date):
+        return (
+            select(Subscription)
+            .join(Plan, Plan.id == Subscription.plan_id)
+            .where(
+                Subscription.state.in_([SubscriptionState.active, SubscriptionState.paused]),
+                Subscription.expiry_date < run_date,
+                Plan.auto_close.is_(True),
             )
         )
 
     def expired_auto_close_ids(self, run_date: date) -> list[int]:
         return list(
             self.db.scalars(
-                select(Subscription.id)
-                .join(Plan, Plan.id == Subscription.plan_id)
-                .where(
-                    Subscription.state.in_([SubscriptionState.active, SubscriptionState.paused]),
-                    Subscription.expiry_date < run_date,
-                    Plan.auto_close.is_(True),
-                )
+                self.auto_close_statement(run_date)
+                .with_only_columns(Subscription.id)
                 .order_by(Subscription.id)
             )
         )

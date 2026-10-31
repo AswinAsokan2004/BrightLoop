@@ -3,7 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from app.models.enums import SubscriptionState
+from app.models.enums import BillingPeriod, SubscriptionState
+from app.schemas.customer import CustomerRead, PaymentTermRead
 from app.schemas.catalog import TaxRead
 from app.schemas.common import Money, ORMModel
 
@@ -61,6 +62,29 @@ class RenewRequest(BaseModel):
     new_expiry_date: date
 
 
+class NameRead(ORMModel):
+    id: int
+    name: str
+
+
+class SubscriptionPlanRead(NameRead):
+    billing_period: BillingPeriod
+    billing_interval: int
+    min_quantity: int
+    start_date: date
+    end_date: date | None
+    active: bool
+    auto_close: bool
+    closable: bool
+    pausable: bool
+    renewable: bool
+    trial_days: int
+
+
+class SubscriptionTemplateRead(NameRead):
+    validity_days: int
+
+
 class SubscriptionLineRead(ORMModel):
     id: int
     product_id: int
@@ -73,6 +97,8 @@ class SubscriptionLineRead(ORMModel):
     tax_amount: Decimal
     total_amount: Decimal
     taxes: list[TaxRead]
+    product: NameRead
+    variant: NameRead | None
 
 
 class StateLogRead(ORMModel):
@@ -82,6 +108,7 @@ class StateLogRead(ORMModel):
     changed_by: int | None
     reason: str | None
     created_at: datetime
+    changed_by_user: NameRead | None
 
 
 class SubscriptionSummary(ORMModel):
@@ -96,6 +123,8 @@ class SubscriptionSummary(ORMModel):
     next_invoice_date: date | None
     recurring_total: Decimal
     created_at: datetime
+    customer_name: str
+    plan_name: str
 
 
 class SubscriptionRead(SubscriptionSummary):
@@ -114,3 +143,8 @@ class SubscriptionRead(SubscriptionSummary):
     updated_at: datetime
     lines: list[SubscriptionLineRead]
     state_logs: list[StateLogRead]
+    customer: CustomerRead
+    plan: SubscriptionPlanRead
+    payment_term: PaymentTermRead
+    quotation_template: SubscriptionTemplateRead | None
+    salesperson: NameRead | None

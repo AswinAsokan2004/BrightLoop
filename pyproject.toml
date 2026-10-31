@@ -24,3 +24,4 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = ["postgres: real PostgreSQL tests using disposable databases; enable with --postgres"]

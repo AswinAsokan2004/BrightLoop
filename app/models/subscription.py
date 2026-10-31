@@ -11,6 +11,7 @@ from app.models.catalog import Product, ProductVariant, Tax
 from app.models.customer import Customer, PaymentTerm
 from app.models.enums import SubscriptionState
 from app.models.plan import Plan, QuotationTemplate
+from app.models.user import User
 
 subscription_line_taxes = Table(
     "subscription_line_taxes",
@@ -60,6 +61,7 @@ class Subscription(IdMixin, TimestampMixin, Base):
     plan: Mapped[Plan] = relationship()
     payment_term: Mapped[PaymentTerm] = relationship()
     quotation_template: Mapped[QuotationTemplate | None] = relationship()
+    salesperson: Mapped[User | None] = relationship(foreign_keys=[salesperson_id])
     lines: Mapped[list[SubscriptionLine]] = relationship(
         cascade="all, delete-orphan", order_by="SubscriptionLine.id"
     )
@@ -71,6 +73,14 @@ class Subscription(IdMixin, TimestampMixin, Base):
     def billing_anchor(self) -> date:
         """Billing periods are counted from the end of the trial, or from the start date."""
         return self.trial_end_date or self.start_date
+
+    @property
+    def customer_name(self) -> str:
+        return self.customer.company_name or self.customer.name
+
+    @property
+    def plan_name(self) -> str:
+        return self.plan.name
 
 
 class SubscriptionLine(IdMixin, Base):
@@ -108,3 +118,4 @@ class SubscriptionStateLog(IdMixin, CreatedAtMixin, Base):
     )
     changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     reason: Mapped[str | None] = mapped_column(String(255))
+    changed_by_user: Mapped[User | None] = relationship()

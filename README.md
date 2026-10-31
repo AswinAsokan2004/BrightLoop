@@ -1,9 +1,12 @@
 # BrightLoop
 
-Subscription management API for Brightloop Software: plans, subscriptions, recurring billing,
-payments and revenue reporting. Built with FastAPI and PostgreSQL, managed with [uv](https://docs.astral.sh/uv/).
+Subscription management for Brightloop Software: a React frontend connected to the existing
+FastAPI/PostgreSQL backend for plans, subscriptions, recurring billing, payments and reports.
+Python dependencies are managed with [uv](https://docs.astral.sh/uv/); the frontend uses Node.js 22+ and npm.
 
-## Setup
+## Backend setup
+
+Start Docker Desktop or Colima before running Docker Compose. Run these from the repository root.
 
 ```bash
 cp .env.example .env        # then set POSTGRES_PASSWORD and JWT_SECRET
@@ -17,6 +20,78 @@ uv run python -m app.scripts.create_admin --name "Your Name" --email admin@brigh
 uv run fastapi dev app/main.py   # API on http://localhost:8000
 ```
 
+## Frontend setup
+
+Keep the backend running on port 8000. Open a second terminal:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open http://localhost:5173 and sign in with the admin account created above. Public signup creates
+customer accounts, whose navigation is restricted to their profile, subscriptions and invoices.
+Seeded accounts have placeholder hashes and cannot log in until a real password is set.
+
+Vite proxies `/api` requests to `http://127.0.0.1:8000`. The Figma configuration file is no longer
+required. If an earlier Vite server was running, stop it with Control+C and restart it.
+For a different API server, set `API_PROXY_TARGET` in `frontend/.env` or the shell. For a deployed
+frontend use a reverse proxy for `/api`, or set `VITE_API_BASE_URL` to the full backend `/api` URL
+and configure backend `CORS_ORIGINS` accordingly. Never put JWT secrets or DB credentials in Vite variables.
+
+The frontend includes authentication/refresh/reset, role-based navigation, record creation/editing,
+variants and attributes, quotation templates, subscription transitions and renewal, billing runs,
+invoice confirmation/cancellation/email/printing, payment recording and live revenue reports.
+Invoice amounts are taken from backend Decimal strings. Payment entry records an existing payment;
+it does not charge a card or integrate a payment gateway.
+
+## Checks
+
+```bash
+uv run pytest                  # pricing/date tests plus isolated API workflow tests
+cd frontend
+npm test                       # API client tests, including concurrent token refresh
+npm run build                  # TypeScript check and production bundle
+```
+
+Default API workflow tests use a disposable SQLite adapter. To verify the actual documented
+PostgreSQL setup and locking behavior, start PostgreSQL and run from the root:
+
+```bash
+uv run pytest --postgres
+# In this prepared workspace, the equivalent command is:
+../analysis-venv/bin/python -m pytest --postgres
+```
+
+These tests create uniquely named `brightloop_test_*` databases, run the migrations and admin
+CLI there, exercise the API, then remove only those test databases. Your normal application's
+records are not changed. The database role must have permission to create databases. Connection
+settings come from `.env`; CI can override them with `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`,
+`TEST_POSTGRES_USER`, `TEST_POSTGRES_PASSWORD` and `TEST_POSTGRES_DB` (the existing admin connection DB).
+PostgreSQL tests are explicitly skipped unless `--postgres` is supplied.
+
+For browser automation, run in `frontend/`:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Playwright automatically starts and stops a disposable SQLite-backed fixture API on 8100 and
+Vite on 5174. It refuses to reuse already-running servers on those ports and does not use your
+API on 8000. No manual fixture server startup is needed. `BRIGHTLOOP_TEST_PYTHON` can point to a
+Python environment with the backend dependencies (otherwise it checks `.venv`, this workspace's
+prepared environment, then `python3`). With an existing Chrome installation on this Mac:
+
+```bash
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run test:e2e
+```
+
+The test-only admin is `integration@example.com` / `Integration!Pass123`; customer and staff
+credentials are in `tests/browser_api.py`. Those accounts exist only in the fixture database.
+Read [the testing guide](docs/TESTING.md) for coverage and isolation details.
+
 New to the project? Read the [knowledge transfer guide](docs/KNOWLEDGE_TRANSFER.md): why each API
 exists and how the code is layered.
 
@@ -26,6 +101,7 @@ Interactive API docs: http://localhost:8000/docs. Log in with `POST /api/auth/lo
 ## Project layout
 
 ```
+frontend/        React UI, API client and browser/client tests
 app/
   routes/        HTTP layer: role checks, request/response shapes, calls a service
   services/      Business rules and transactions (billing engine, state machine, pricing)
@@ -35,7 +111,7 @@ app/
   core/          Settings, database session, security, email, error handling
   scripts/       create_admin, run_billing (for cron)
 migrations/      Alembic migrations
-tests/           Unit tests for pricing and billing-period maths
+tests/           Pricing/period tests and isolated API workflow tests
 ```
 
 ## Roles
@@ -107,3 +183,61 @@ and `SMTP_PASSWORD` in `.env` to send real email.
 4. Browse the tables under **brightloop → Databases → brightloop → Schemas → public → Tables**. To see the diagram, right-click **Tables** and choose **View Diagram**.
 
 If you changed the values in `.env`, use those instead. Postgres must be running (`docker compose up -d`).
+
+## Quotation and subscription workspace
+
+Open **Subscriptions** and select a record to view `/subscriptions/{id}`. Customer accounts use
+`/portal/subscriptions/{id}`. The workspace shows named customer/plan information, quotation
+validity, agreed product/variant lines with tax and discount breakdowns, plan policies and billing
+dates. Overview, Invoices and Activity tabs keep contract details, linked invoices and state
+history together. Quotation Templates remains a separate configuration screen.
+
+Available actions follow state, role and plan policy. Confirmation, activation, pause/resume,
+closure, renewal and next-period invoicing use the existing service rules. Confirmation dialogs
+explain consequential actions. Quotes can be edited only in draft/quotation, and expired quotes
+must return to draft before a fresh quotation can be confirmed. Preview totals reflect the last
+saved calculation; invoices remain authoritative and recalculate discounts/taxes at billing time.
+
+Subscription read responses now include named, scoped customer/plan/payment-term context and
+product/variant/actor labels. The portal invoice list accepts `subscription_id` while retaining
+customer ownership filters. These changes are additive and require no database migration.
+
+### Invoice details workspace
+
+Open **Invoices** and select an invoice to view its full page at `/invoices/{id}`.
+Customers use `/portal/invoices/{id}` and have read-only access to their own invoices.
+The page shows billing dates, customer contact details, the linked subscription, itemized
+amounts/taxes, balances, payment history and invoice timestamps. Internal users can confirm,
+cancel, send or print an invoice and record partial or full payments according to its state.
+Email delivery uses the existing server email configuration. No database migration is required.
+
+### Finance overview
+
+Internal users can open **Overview** or **Reports** for a unified finance workspace.
+Search customer/plan names, choose a currency and date range, and click **Apply filters**.
+Summary cards drill into paginated invoice balances, recent payments and active subscriptions.
+Invoice and subscription links open their full detail pages; the applied filters and page positions
+are saved in the URL for reload/back navigation. **Clear filters** restores the unfiltered view.
+
+Totals are separated by currency, without exchange-rate conversion. Invoice dates filter invoiced,
+outstanding and overdue amounts; receipt dates filter collections. Active subscriptions and
+normalized untaxed MRR reflect the current portfolio, independently of the date range.
+New read-only endpoints: `/api/reports/finance` and `/api/reports/options` (admin/staff only).
+Restart the backend to load the new routes. No database migration is needed.
+
+### Billing operations workspace
+
+Open **Billing** to preview all due active subscriptions for a billing date, including missed
+periods and automatic closures. Changing the date requires a fresh preview before **Run billing**.
+The confirmation describes the scope; the worker still rechecks live state and period uniqueness.
+Preview counts are subscription candidates, not a guaranteed number or value of new invoices.
+
+A run opens `/billing/runs/{id}` with processed/invoice/failure counts, paginated generated invoices,
+linked subscriptions and readable failure details. Correct issues on the affected subscriptions,
+then **Preview this date again** before retrying. Existing invoice periods, including cancelled
+invoices, are skipped. If a request fails, check run history before retrying because the server
+may still be processing. Billing remains synchronous; invoice confirmation/sending are separate.
+
+New read-only staff endpoints: `/api/billing/preview`, `/api/billing/runs/{id}/invoices`, and
+`/api/billing/runs/{id}/failures`. Restart the backend if it is not using automatic reload.
+No database migration is required.

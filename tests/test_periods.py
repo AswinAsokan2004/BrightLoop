@@ -40,3 +40,19 @@ def test_first_period_on_or_after():
     assert first_period_on_or_after(anchor, date(2026, 3, 10), M) == date(2026, 3, 10)
     assert first_period_on_or_after(anchor, date(2026, 3, 11), M) == date(2026, 4, 10)
     assert first_period_on_or_after(anchor, date(2025, 12, 1), M) == anchor
+
+
+def test_preview_period_counts_match_worker_schedule_boundaries():
+    from app.services.periods import count_period_starts
+
+    cases = [
+        (date(2026, 1, 31), date(2026, 1, 31), date(2026, 3, 31), M, 1, 3),
+        (date(2026, 1, 31), date(2026, 2, 28), date(2026, 3, 30), M, 1, 1),
+        (date(2028, 2, 29), date(2028, 2, 29), date(2030, 2, 28), Y, 1, 3),
+        (date(2026, 1, 15), date(2026, 1, 15), date(2026, 7, 15), M, 3, 3),
+        (date(2026, 1, 1), date(2026, 1, 1), date(2026, 1, 14), W, 2, 1),
+        (date(2026, 1, 1), date(2026, 1, 1), date(2026, 1, 3), D, 1, 3),
+        (date(2026, 1, 1), date(2026, 1, 4), date(2026, 1, 3), D, 1, 0),
+    ]
+    for anchor, current, through, period, interval, expected in cases:
+        assert count_period_starts(anchor, current, through, period, interval) == expected
