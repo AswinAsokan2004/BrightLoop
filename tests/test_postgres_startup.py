@@ -146,3 +146,11 @@ with TestClient(app) as client:
     assert login(replacement) == {'status': 200, 'role': 'admin'}
     with connect(migrated_postgres) as db:
         assert db.execute("SELECT count(*) FROM users WHERE email='admin@brightloop.com'").fetchone()[0] == 1
+
+
+def test_finance_with_thousands_of_records_responds_under_two_seconds(bootstrapped_postgres):
+    result = run_command(bootstrapped_postgres, '-m', 'tests.finance_performance')
+    measured = json.loads(result.stdout)
+    assert measured['records_per_domain'] == 3000
+    assert all(seconds < 2 for seconds in measured['seconds'])
+    print('Finance PostgreSQL timings:', measured['seconds'])

@@ -32,7 +32,7 @@ Start PostgreSQL, then run:
 uv run pytest --postgres
 ```
 
-This includes the normal tests and six PostgreSQL cases:
+This includes the normal tests and seven PostgreSQL cases:
 
 1. Apply `alembic upgrade head`; verify schema, seed records, billing uniqueness constraint and
    safe repeat migration execution.
@@ -125,3 +125,17 @@ from the linked subscription's current customer record.
 Additional invoice regressions cover the overdue warning, customer invoice printing, and email
 confirmation/cancellation, failure display and successful retry. Email responses are intercepted
 in the browser test so no real email is sent; invoice/payment/ownership flows use the isolated API.
+
+## Finance overview coverage
+
+`tests/test_finance.py` checks currency separation, aggregates versus drill-down records, receipt
+versus invoice date filtering, current active counts, empty results, customer/staff permissions,
+query validation and paginated name searches. `frontend/tests/finance.spec.ts` covers named filters,
+currency switching, pagination, reload/back restoration, invoice links, invalid/empty date ranges,
+filter clearing and mobile page overflow.
+
+The seventh PostgreSQL case runs `tests.finance_performance` in a disposable database. It inserts
+3,000 subscriptions, 3,000 invoices and 3,000 payments, then checks first-page, deep-pagination and
+customer/plan-filtered finance responses, each under two seconds. Local measurements were
+0.179s, 0.087s and 0.300s. These are application/API timings on this machine, not a guarantee of
+production network or browser performance. No real application data is modified.

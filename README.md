@@ -210,3 +210,17 @@ The page shows billing dates, customer contact details, the linked subscription,
 amounts/taxes, balances, payment history and invoice timestamps. Internal users can confirm,
 cancel, send or print an invoice and record partial or full payments according to its state.
 Email delivery uses the existing server email configuration. No database migration is required.
+
+### Finance overview
+
+Internal users can open **Overview** or **Reports** for a unified finance workspace.
+Search customer/plan names, choose a currency and date range, and click **Apply filters**.
+Summary cards drill into paginated invoice balances, recent payments and active subscriptions.
+Invoice and subscription links open their full detail pages; the applied filters and page positions
+are saved in the URL for reload/back navigation. **Clear filters** restores the unfiltered view.
+
+Totals are separated by currency, without exchange-rate conversion. Invoice dates filter invoiced,
+outstanding and overdue amounts; receipt dates filter collections. Active subscriptions and
+normalized untaxed MRR reflect the current portfolio, independently of the date range.
+New read-only endpoints: `/api/reports/finance` and `/api/reports/options` (admin/staff only).
+Restart the backend to load the new routes. No database migration is needed.

@@ -24,7 +24,7 @@ test("admin creates a contract, invoices, collects payment and reloads persisted
   page.on("pageerror", (error) => failures.push(error.message))
   await signIn(page)
   await expect(
-    page.getByRole("heading", { name: "Overview", exact: true }),
+    page.getByRole("heading", { name: "Finance overview", exact: true }),
   ).toBeVisible()
   await navigate(page, "Customers")
   await page.getByRole("button", { name: "Add customer" }).click()
