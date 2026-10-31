@@ -20,3 +20,10 @@ logs/
 # beside it.
 /.plugins/
 /.opencode-skills/
+
+# Browser test artifacts
+test-results/
+playwright-report/
+
+# Document frontend configuration without committing local secrets
+!.env.example
