@@ -64,6 +64,11 @@ def exercise(mode):
             with ThreadPoolExecutor(max_workers=4) as pool:
                 runs = list(pool.map(bill, range(4)))
             assert all(run["errors_count"] == 0 for run in runs), runs
+            for run in runs:
+                linked = admin("GET", f"/billing/runs/{run['id']}/invoices")
+                assert linked["total"] == run["invoices_created"]
+                assert admin("GET", f"/billing/runs/{run['id']}/failures")["total"] == 0
+            assert admin("GET", f"/billing/preview?run_date={date.today().isoformat()}")["due_subscriptions"] == 0
             invoices = admin("GET", invoice_path)["items"]
             assert len(invoices) == 3
             assert len({invoice["period_start"] for invoice in invoices}) == 3

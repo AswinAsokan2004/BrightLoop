@@ -118,6 +118,13 @@ test("finance filters, currency isolation, pagination and invoice drill-down per
     "outstanding",
   );
   await expect(invoices.getByRole("link")).toHaveCount(10);
+  await page.getByRole("button", { name: /^Invoiced total/ }).click();
+  await expect(page.getByLabel("Finance invoice view")).toHaveValue("billed");
+  await expect(invoices.getByRole("link")).toHaveCount(10);
+  const subscriptions = page.getByRole("region", { name: "Active subscriptions", exact: true });
+  await page.getByRole("button", { name: "Next subscriptions", exact: true }).click();
+  await expect(subscriptions.getByRole("link")).toHaveCount(1);
+  await expect(invoices.getByRole("link")).toHaveCount(10);
   await page.getByLabel("Report currency").selectOption("USD");
   await page
     .getByRole("button", { name: "Apply filters", exact: true })

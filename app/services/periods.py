@@ -49,3 +49,19 @@ def first_period_on_or_after(anchor: date, day: date, period: BillingPeriod, int
     if day <= anchor:
         return anchor
     return next_period_start(anchor, day - relativedelta(days=1), period, interval)
+
+
+def count_period_starts(
+    anchor: date, current: date, through: date, period: BillingPeriod, interval: int = 1
+) -> int:
+    """Count current plus anchored starts through a boundary, without iterating missed periods."""
+    if current > through:
+        return 0
+
+    def index(day: date) -> int:
+        k = max(_units_between(anchor, day, period) // interval, 0)
+        while k > 0 and add_periods(anchor, period, k * interval) > day:
+            k -= 1
+        return k
+
+    return 1 + max(0, index(through) - index(current))

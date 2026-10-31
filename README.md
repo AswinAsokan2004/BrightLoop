@@ -224,3 +224,20 @@ outstanding and overdue amounts; receipt dates filter collections. Active subscr
 normalized untaxed MRR reflect the current portfolio, independently of the date range.
 New read-only endpoints: `/api/reports/finance` and `/api/reports/options` (admin/staff only).
 Restart the backend to load the new routes. No database migration is needed.
+
+### Billing operations workspace
+
+Open **Billing** to preview all due active subscriptions for a billing date, including missed
+periods and automatic closures. Changing the date requires a fresh preview before **Run billing**.
+The confirmation describes the scope; the worker still rechecks live state and period uniqueness.
+Preview counts are subscription candidates, not a guaranteed number or value of new invoices.
+
+A run opens `/billing/runs/{id}` with processed/invoice/failure counts, paginated generated invoices,
+linked subscriptions and readable failure details. Correct issues on the affected subscriptions,
+then **Preview this date again** before retrying. Existing invoice periods, including cancelled
+invoices, are skipped. If a request fails, check run history before retrying because the server
+may still be processing. Billing remains synchronous; invoice confirmation/sending are separate.
+
+New read-only staff endpoints: `/api/billing/preview`, `/api/billing/runs/{id}/invoices`, and
+`/api/billing/runs/{id}/failures`. Restart the backend if it is not using automatic reload.
+No database migration is required.

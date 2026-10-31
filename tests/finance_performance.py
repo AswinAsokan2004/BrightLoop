@@ -27,6 +27,8 @@ def main():
                     "state": SubscriptionState.active,
                     "currency": "INR",
                     "recurring_untaxed": Decimal("100"),
+                    "next_invoice_date": date.today(),
+                    "expiry_date": date.today() + timedelta(days=365),
                 }
                 for i in range(start, start + 300)
             ]
@@ -87,7 +89,22 @@ def main():
             assert len(data["invoices"]) == len(data["payments"]) == len(data["subscriptions"]) == 10
             assert elapsed < 2, f"Finance endpoint took {elapsed:.3f}s with 3000 records per domain"
             durations.append(round(elapsed, 4))
-    print(json.dumps({"records_per_domain": 3000, "seconds": durations}))
+        billing_durations = []
+        for page in [1, 200]:
+            start = time.perf_counter()
+            response = client.get(
+                f"/api/billing/preview?run_date={date.today().isoformat()}&page={page}&size=10",
+                headers=headers,
+            )
+            elapsed = time.perf_counter() - start
+            assert response.status_code == 200, response.text
+            assert response.json()["due_subscriptions"] >= 3000
+            assert len(response.json()["items"]) == 10
+            assert elapsed < 2, f"Billing preview took {elapsed:.3f}s with 3000 subscriptions"
+            billing_durations.append(round(elapsed, 4))
+    print(
+        json.dumps({"records_per_domain": 3000, "seconds": durations, "billing_seconds": billing_durations})
+    )
 
 
 if __name__ == "__main__":

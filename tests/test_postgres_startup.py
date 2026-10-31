@@ -153,4 +153,6 @@ def test_finance_with_thousands_of_records_responds_under_two_seconds(bootstrapp
     measured = json.loads(result.stdout)
     assert measured['records_per_domain'] == 3000
     assert all(seconds < 2 for seconds in measured['seconds'])
+    assert all(seconds < 2 for seconds in measured['billing_seconds'])
     print('Finance PostgreSQL timings:', measured['seconds'])
+    print('Billing preview PostgreSQL timings:', measured['billing_seconds'])

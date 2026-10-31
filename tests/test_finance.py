@@ -109,3 +109,77 @@ def test_finance_validation_permissions_and_bounded_name_options(client):
     assert exact["items"][0]["name"] == "Finance Name 24"
     assert client.get("/api/reports/options?kind=customer&q=%25", headers=admin).json()["items"] == []
     assert client.get("/api/reports/options?kind=plan", headers=admin).json()["items"][0]["name"] == "Monthly"
+
+
+def test_finance_status_boundaries_and_independent_pagination(client):
+    """Draft/cancelled invoices and unsuccessful receipts must not inflate finance totals."""
+    from app.models import Payment
+    from app.models.enums import InvoiceState, PaymentMethod, PaymentStatus
+
+    admin, _ = authenticate(client)
+    invoices = [invoice_subscription(client, admin, create_subscription(client, admin)) for _ in range(5)]
+    for invoice in invoices[1:4]:
+        assert client.post(f"/api/invoices/{invoice['id']}/confirm", headers=admin).status_code == 200
+    paid = invoices[3]
+    assert (
+        client.post(
+            f"/api/invoices/{paid['id']}/payments",
+            headers=admin,
+            json={
+                "method": "cash",
+                "amount": "100.00",
+                "payment_date": date.today().isoformat(),
+            },
+        ).status_code
+        == 201
+    )
+    assert client.post(f"/api/invoices/{invoices[4]['id']}/cancel", headers=admin).status_code == 200
+    get_session = client.app.dependency_overrides[get_db]
+    with next(get_session()) as db:
+        db.execute(
+            update(Invoice)
+            .where(Invoice.id == invoices[1]["id"])
+            .values(due_date=date.today() - timedelta(days=1))
+        )
+        db.execute(update(Invoice).where(Invoice.id == invoices[2]["id"]).values(due_date=date.today()))
+        for status in [PaymentStatus.pending, PaymentStatus.failed, PaymentStatus.refunded]:
+            db.add(
+                Payment(
+                    invoice_id=invoices[1]["id"],
+                    customer_id=1,
+                    amount=Decimal("999.00"),
+                    method=PaymentMethod.bank_transfer,
+                    payment_date=date.today(),
+                    status=status,
+                )
+            )
+        db.commit()
+    today = date.today().isoformat()
+    query = f"/api/reports/finance?currency=INR&date_from={today}&date_to={today}"
+    data = client.get(query, headers=admin).json()
+    assert Decimal(data["invoiced_total"]) == 300
+    assert Decimal(data["revenue_collected"]) == 100
+    assert Decimal(data["outstanding_amount"]) == 200
+    assert Decimal(data["overdue_amount"]) == 100
+    assert data["overdue_count"] == data["payment_count"] == 1
+    assert data["invoices"][0]["id"] == invoices[1]["id"]  # due today is not yet overdue
+    assert Decimal(data["monthly"][0]["collected"]) == 100
+    expected = {"all": 5, "billed": 3, "outstanding": 2, "overdue": 1}
+    for view, count in expected.items():
+        response = client.get(query + f"&invoice_view={view}", headers=admin).json()
+        assert response["invoice_count"] == len(response["invoices"]) == count
+        if view == "billed":
+            assert {row["state"] for row in response["invoices"]} == {
+                InvoiceState.confirmed.value,
+                InvoiceState.paid.value,
+            }
+    first = client.get(query + "&invoice_view=all&size=1", headers=admin).json()
+    second = client.get(
+        query + "&invoice_view=all&size=1&invoice_page=2&subscription_page=2", headers=admin
+    ).json()
+    assert first["invoices"][0]["id"] != second["invoices"][0]["id"]
+    assert first["subscriptions"][0]["id"] != second["subscriptions"][0]["id"]
+    assert first["payments"] == second["payments"]  # other page controls do not move payments
+    assert first["invoiced_total"] == second["invoiced_total"]
+    beyond = client.get(query + "&payment_page=2&size=1", headers=admin).json()
+    assert beyond["payments"] == [] and beyond["payment_count"] == 1

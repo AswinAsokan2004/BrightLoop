@@ -109,11 +109,9 @@ test("admin creates a contract, invoices, collects payment and reloads persisted
   await expect(page.getByRole("alert")).toHaveCount(0)
   await navigate(page, "Billing")
   await page.getByRole("button", { name: "Run billing", exact: true }).click()
-  await expect(page.getByRole("dialog", { name: /Billing run/ })).toBeVisible()
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Close dialog" })
-    .click()
+  const billingConfirmation = page.getByRole("dialog", { name: "Run billing", exact: true })
+  await billingConfirmation.getByRole("button", { name: "Generate draft invoices", exact: true }).click()
+  await expect(page.getByRole("article", { name: "Billing run details" })).toBeVisible()
   await navigate(page, "Settings")
   await page.getByRole("button", { name: "Team", exact: true }).click()
   await expect(

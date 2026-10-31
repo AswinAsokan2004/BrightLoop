@@ -139,3 +139,28 @@ The seventh PostgreSQL case runs `tests.finance_performance` in a disposable dat
 customer/plan-filtered finance responses, each under two seconds. Local measurements were
 0.179s, 0.087s and 0.300s. These are application/API timings on this machine, not a guarantee of
 production network or browser performance. No real application data is modified.
+
+Finance boundary regressions also verify that drafts/cancelled invoices do not increase invoiced
+revenue, paid invoices are not outstanding, invoices due today are not overdue, and
+pending/failed/refunded payments do not increase collected revenue. Date endpoints are inclusive.
+Independent table pagination preserves financial totals and does not move unrelated tables.
+The browser test checks that the invoiced-total card selects confirmed/paid invoices and that
+subscription pagination leaves the invoice page unchanged.
+
+## Billing operations coverage
+
+`tests/test_billing_operations.py` verifies that previews do not mutate subscriptions or create
+invoices, share worker eligibility, show paused automatic closures without billing them, respect
+expiry and month-end anchors, and agree with the periods actually generated. It checks per-run
+invoice ownership, pagination, multiline failure context, partial failures, corrected retries, repeat
+runs, missing records and staff/customer permissions. `tests/test_periods.py` covers the efficient
+preview period count for daily, weekly, monthly, yearly, leap-year and interval boundaries.
+
+`frontend/tests/billing-operations.spec.ts` checks date-change blocking, confirmation before any
+POST, run results, invoice navigation, reload/back, mobile overflow, retry-date selection and request
+failure guidance. The failure-banner browser case supplies simulated run failures; actual failure
+and retry behavior is covered in the API tests. All actual billing calls use disposable fixture data.
+
+The PostgreSQL concurrency worker checks that each run links exactly its own generated invoices
+and leaves no due work after all runs finish. The existing 3,000-record benchmark also measures
+first/deep-page billing previews, each required to return in under two seconds on the test machine.
