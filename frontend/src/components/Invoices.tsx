@@ -1,75 +1,32 @@
-import { useState } from "react"
-import {
-  api,
-  text,
-  title,
-  money,
-  printInvoice,
-  today,
-  type Page,
-  type Row,
-  type User,
-} from "../lib/api"
-import {
-  Badge,
-  Button,
-  Card,
-  Details,
-  Dialog,
-  ErrorMessage,
-  Form,
-  Table,
-  useLoad,
-  choices,
-} from "./ui"
+import { useEffect, useState } from "react";
+import { text, title, money, type Page, type User } from "../lib/api";
+import { Badge, Button, Card, ErrorMessage, Table, useLoad } from "./ui";
+import InvoiceDetails from "./InvoiceDetails";
+import { navigate } from "../lib/navigation";
 export default function Invoices({ user }: { user: User }) {
   const portal = user.role === "customer",
-    base = portal ? "/portal/invoices" : "/invoices"
+    base = portal ? "/portal/invoices" : "/invoices";
   const [page, setPage] = useState(1),
     [filter, setFilter] = useState(""),
     [query, setQuery] = useState(""),
-    [revision, setRevision] = useState(0),
-    [selected, setSelected] = useState<number | null>(() => {
-      const match = location.pathname.match(/\/invoices\/(\d+)\/?$/)
-      return match ? Number(match[1]) : null
-    }),
-    [pay, setPay] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [notice, setNotice] = useState("")
-  const params = new URLSearchParams({ page: String(page), size: "20" })
+    [selected, setSelected] = useState<number | null>(() => invoiceId());
+  function invoiceId() {
+    const match = location.pathname.match(/\/invoices\/(\d+)\/?$/);
+    return match ? Number(match[1]) : null;
+  }
+  useEffect(() => {
+    const update = () => setSelected(invoiceId());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
+  const params = new URLSearchParams({ page: String(page), size: "20" });
   if (filter === "outstanding" || filter === "overdue")
-    params.set(filter, "true")
-  else if (filter) params.set("state", filter)
-  if (query && !portal) params.set("q", query)
-  const result = useLoad<Page>(`${base}?${params}`, revision),
-    detail = useLoad<Row>(selected ? `${base}/${selected}` : null, revision),
-    invoice = detail.data
-  async function action(suffix: string) {
-    setBusy(true)
-    setError("")
-    setNotice("")
-    try {
-      await api(`/invoices/${selected}/${suffix}`, "POST")
-      setRevision((r) => r + 1)
-      if (suffix === "send")
-        setNotice(
-          "Invoice email queued. Delivery depends on the server email configuration.",
-        )
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  async function print() {
-    setError("")
-    try {
-      await printInvoice(`${base}/${selected}/print`)
-    } catch (e) {
-      setError((e as Error).message)
-    }
-  }
+    params.set(filter, "true");
+  else if (filter) params.set("state", filter);
+  if (query && !portal) params.set("q", query);
+  const result = useLoad<Page>(selected ? null : `${base}?${params}`);
+  if (selected)
+    return <InvoiceDetails key={selected} id={selected} user={user} />;
   return (
     <div className="space-y-5">
       <h1 className="text-3xl font-bold text-navy-900">
@@ -89,8 +46,8 @@ export default function Invoices({ user }: { user: User }) {
               className="rounded border p-2"
               value={query}
               onChange={(e) => {
-                setQuery(e.target.value)
-                setPage(1)
+                setQuery(e.target.value);
+                setPage(1);
               }}
             />
           )}
@@ -99,8 +56,8 @@ export default function Invoices({ user }: { user: User }) {
             className="rounded border p-2"
             value={filter}
             onChange={(e) => {
-              setFilter(e.target.value)
-              setPage(1)
+              setFilter(e.target.value);
+              setPage(1);
             }}
           >
             <option value="">All invoices</option>
@@ -147,9 +104,7 @@ export default function Invoices({ user }: { user: User }) {
               },
             ]}
             select={(r) => {
-              setSelected(r.id)
-              setError("")
-              setNotice("")
+              navigate(`${base}/${r.id}`);
             }}
           />
         )}
@@ -173,146 +128,6 @@ export default function Invoices({ user }: { user: User }) {
           </div>
         </div>
       </Card>
-      {selected && (
-        <Dialog
-          title={invoice ? text(invoice, "number") : "Invoice"}
-          close={() => setSelected(null)}
-        >
-          <ErrorMessage error={detail.error || error} />
-          {notice && (
-            <p role="status" className="mb-3 text-sm text-teal-700">
-              {notice}
-            </p>
-          )}
-          {detail.loading ? (
-            <p>Loading…</p>
-          ) : (
-            invoice && (
-              <>
-                <Details row={invoice} />
-                <h3 className="mt-5 font-semibold">Invoice lines</h3>
-                <Table
-                  rows={(invoice.lines || []) as Row[]}
-                  columns={[
-                    "description",
-                    "quantity",
-                    "unit_price",
-                    "discount_amount",
-                    "tax_amount",
-                    "total_amount",
-                  ].map((key) => ({ key, label: title(key) }))}
-                />
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Button secondary onClick={() => void print()}>
-                    Print / Save as PDF
-                  </Button>
-                  {!portal && invoice.state === "draft" && (
-                    <Button
-                      disabled={busy}
-                      onClick={() => void action("confirm")}
-                    >
-                      Confirm invoice
-                    </Button>
-                  )}
-                  {!portal && invoice.state === "confirmed" && (
-                    <Button disabled={busy} onClick={() => setPay(true)}>
-                      Record payment
-                    </Button>
-                  )}
-                  {!portal &&
-                    ["confirmed", "paid"].includes(text(invoice, "state")) && (
-                      <Button
-                        secondary
-                        disabled={busy}
-                        onClick={() => void action("send")}
-                      >
-                        Send email
-                      </Button>
-                    )}
-                  {!portal &&
-                    ["draft", "confirmed"].includes(text(invoice, "state")) &&
-                    String(invoice.amount_paid) === "0.00" && (
-                      <Button
-                        secondary
-                        disabled={busy}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              "Cancel this invoice? Its billing period will remain invoiced.",
-                            )
-                          )
-                            void action("cancel")
-                        }}
-                      >
-                        Cancel invoice
-                      </Button>
-                    )}
-                </div>
-                <h3 className="mt-6 font-semibold">Payments</h3>
-                <Table
-                  rows={(invoice.payments || []) as Row[]}
-                  columns={[
-                    "payment_date",
-                    "method",
-                    "amount",
-                    "reference",
-                    "status",
-                  ].map((key) => ({ key, label: title(key) }))}
-                />
-              </>
-            )
-          )}
-        </Dialog>
-      )}
-      {pay && invoice && (
-        <Dialog title="Record payment" close={() => setPay(false)}>
-          <p className="mb-4">
-            Outstanding: {money(invoice.amount_due, text(invoice, "currency"))}
-          </p>
-          <Form
-            fields={[
-              {
-                key: "method",
-                label: "Payment method",
-                options: choices([
-                  "cash",
-                  "bank_transfer",
-                  "card",
-                  "upi",
-                  "cheque",
-                  "online_gateway",
-                ]),
-                required: true,
-                value: "bank_transfer",
-              },
-              {
-                key: "amount",
-                label: "Amount",
-                type: "number",
-                min: "0.01",
-                step: "0.01",
-                required: true,
-                value: String(invoice.amount_due),
-              },
-              {
-                key: "payment_date",
-                label: "Payment date",
-                type: "date",
-                required: true,
-                value: today(),
-              },
-              { key: "reference", label: "Reference" },
-              { key: "note", label: "Note", type: "textarea" },
-            ]}
-            submit={async (values) => {
-              await api(`/invoices/${selected}/payments`, "POST", values)
-              setPay(false)
-              setRevision((r) => r + 1)
-            }}
-            cancel={() => setPay(false)}
-          />
-        </Dialog>
-      )}
     </div>
-  )
+  );
 }

@@ -210,7 +210,7 @@ test("full quotation workspace shows named context, exact prices, edit preservat
   await expect(invoice).toHaveCount(1);
   await invoice.click();
   await expect(page).toHaveURL(/\/invoices\/\d+$/);
-  await expect(page.getByRole("dialog", { name: /INV\// })).toBeVisible();
+  await expect(page.getByRole("article", { name: "Invoice details" })).toBeVisible();
   await page.goBack();
   await expect(
     page.getByRole("heading", { name: sub.number, exact: true }),

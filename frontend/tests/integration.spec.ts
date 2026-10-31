@@ -77,10 +77,9 @@ test("admin creates a contract, invoices, collects payment and reloads persisted
   expect((await invoiceRequest).status()).toBe(201)
   await navigate(page,"Invoices")
   await page.getByRole("row").filter({ hasText: "INV/" }).first().click()
-  dialog = page.getByRole("dialog")
-  await dialog
-    .getByRole("button", { name: "Confirm invoice", exact: true })
-    .click()
+  dialog = page.getByRole("article", { name: "Invoice details" })
+  await dialog.getByRole("button", { name: "Confirm invoice", exact: true }).click()
+  await page.getByRole("dialog", { name: "Confirm invoice" }).getByRole("button", { name: "Confirm invoice", exact: true }).click()
   await dialog
     .getByRole("button", { name: "Record payment", exact: true })
     .click()
@@ -90,7 +89,7 @@ test("admin creates a contract, invoices, collects payment and reloads persisted
   })
   await payment.getByRole("button", { name: "Save", exact: true }).click()
   await expect(payment).toHaveCount(0)
-  await expect(dialog.getByText("paid", { exact: true })).toBeVisible()
+  await expect(dialog.getByText("Paid", { exact: true })).toBeVisible()
   const popupPromise = page.waitForEvent("popup")
   await dialog.getByRole("button", { name: "Print / Save as PDF" }).click()
   const popup = await popupPromise
@@ -98,7 +97,7 @@ test("admin creates a contract, invoices, collects payment and reloads persisted
     popup.getByRole("heading", { name: /Invoice INV/ }),
   ).toBeVisible()
   await popup.close()
-  await dialog.getByRole("button", { name: "Close dialog" }).click()
+  await dialog.getByRole("button", { name: "Back to invoices" }).click()
   await navigate(page, "Payments")
   await expect(
     page.getByRole("cell", { name: "100.00", exact: true }),

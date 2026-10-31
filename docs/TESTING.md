@@ -111,3 +111,17 @@ PostgreSQL setup regression above uses only disposable test accounts and databas
 
 GitHub login and commit-author configuration are developer workstation settings, rather than
 application behavior; they are verified separately and are not embedded in automated app tests.
+
+## Invoice workspace coverage
+
+`frontend/tests/invoice-details.spec.ts` exercises the full invoice route, reload and browser back,
+customer names and subscription links, partial and full payment, overpayment rejection with form
+retention, payment notes, cancellation confirmation and cancelled-state restrictions. It also checks
+customer-scoped reads, hidden write actions, rejection of another customer's invoice and mobile
+page overflow. The existing integration flow continues to verify printable invoices and collections.
+Invoice lines and totals use server-calculated invoice amounts; customer contact information is read
+from the linked subscription's current customer record.
+
+Additional invoice regressions cover the overdue warning, customer invoice printing, and email
+confirmation/cancellation, failure display and successful retry. Email responses are intercepted
+in the browser test so no real email is sent; invoice/payment/ownership flows use the isolated API.

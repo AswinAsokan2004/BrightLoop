@@ -201,3 +201,12 @@ saved calculation; invoices remain authoritative and recalculate discounts/taxes
 Subscription read responses now include named, scoped customer/plan/payment-term context and
 product/variant/actor labels. The portal invoice list accepts `subscription_id` while retaining
 customer ownership filters. These changes are additive and require no database migration.
+
+### Invoice details workspace
+
+Open **Invoices** and select an invoice to view its full page at `/invoices/{id}`.
+Customers use `/portal/invoices/{id}` and have read-only access to their own invoices.
+The page shows billing dates, customer contact details, the linked subscription, itemized
+amounts/taxes, balances, payment history and invoice timestamps. Internal users can confirm,
+cancel, send or print an invoice and record partial or full payments according to its state.
+Email delivery uses the existing server email configuration. No database migration is required.
