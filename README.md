@@ -1,4 +1,4 @@
-# FeeCo
+# BrightLoop
 
 Python project managed with [uv](https://docs.astral.sh/uv/), using PostgreSQL in Docker.
 
