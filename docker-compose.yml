@@ -1,7 +1,9 @@
+name: brightloop
+
 services:
   db:
     image: postgres:17
-    container_name: feeco-postgres
+    container_name: brightloop-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
