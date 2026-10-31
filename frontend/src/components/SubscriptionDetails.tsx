@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -22,6 +22,7 @@ import {
   type Subscription,
 } from "../lib/subscriptions";
 import { Badge, Button, Card, ErrorMessage, useLoad } from "./ui";
+import AddonManager from "./AddonManager";
 
 type Props = {
   subscription: Subscription;
@@ -37,6 +38,7 @@ type Props = {
   invoice: () => void;
   remove: () => void;
   changeState: (action: StateAction) => void;
+  addonsChanged: () => void;
 };
 const steps = ["draft", "quotation", "confirmed", "active", "closed"] as const;
 const cycle = (sub: Subscription) => {
@@ -63,10 +65,31 @@ function Datum({ label, children }: { label: string; children: ReactNode }) {
 }
 export default function SubscriptionDetails(props: Props) {
   const { subscription: sub, portal, revision, busy } = props;
-  const [tab, setTab] = useState<"overview" | "invoices" | "activity">(
-    "overview",
-  );
+  const [tab, setTab] = useState<
+    "overview" | "invoices" | "activity" | "addons"
+  >(() => {
+    const initial = new URLSearchParams(location.search).get("tab");
+    return initial === "invoices" ||
+      initial === "activity" ||
+      (portal && initial === "addons")
+      ? initial
+      : "overview";
+  });
   const [invoicePage, setInvoicePage] = useState(1);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (tab === "overview") params.delete("tab");
+    else params.set("tab", tab);
+    const query = params.toString();
+    history.replaceState(
+      null,
+      "",
+      `${location.pathname}${query ? `?${query}` : ""}`,
+    );
+  }, [tab]);
+  const sections = portal
+    ? (["overview", "invoices", "addons", "activity"] as const)
+    : (["overview", "invoices", "activity"] as const);
   const invoices = useLoad<Page>(
     `${portal ? "/portal" : ""}/invoices?subscription_id=${sub.id}&page=${invoicePage}&size=10`,
     revision,
@@ -238,9 +261,9 @@ export default function SubscriptionDetails(props: Props) {
       <div
         role="tablist"
         aria-label="Subscription sections"
-        className="flex gap-2 border-b border-slate-200"
+        className="flex gap-2 overflow-x-auto border-b border-slate-200"
       >
-        {(["overview", "invoices", "activity"] as const).map((name) => {
+        {sections.map((name) => {
           const Icon =
             name === "overview"
               ? FileText
@@ -255,17 +278,17 @@ export default function SubscriptionDetails(props: Props) {
               aria-selected={tab === name}
               tabIndex={tab === name ? 0 : -1}
               onKeyDown={(event) => {
-                const names = ["overview", "invoices", "activity"] as const;
+                const names: readonly (typeof name)[] = sections;
                 const index = names.indexOf(name);
                 const next =
                   event.key === "ArrowRight"
-                    ? names[(index + 1) % 3]
+                    ? names[(index + 1) % names.length]
                     : event.key === "ArrowLeft"
-                      ? names[(index + 2) % 3]
+                      ? names[(index + names.length - 1) % names.length]
                       : event.key === "Home"
                         ? names[0]
                         : event.key === "End"
-                          ? names[2]
+                          ? names[names.length - 1]
                           : null;
                 if (next) {
                   event.preventDefault();
@@ -278,7 +301,7 @@ export default function SubscriptionDetails(props: Props) {
               className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold ${tab === name ? "border-teal-700 text-teal-800" : "border-transparent text-slate-500 hover:text-navy-900"}`}
             >
               <Icon className="size-4" />
-              {title(name)}
+              {name === "addons" ? "Add-ons" : title(name)}
               {name === "invoices" && invoices.data && (
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">
                   {invoices.data.total}
@@ -722,6 +745,20 @@ export default function SubscriptionDetails(props: Props) {
               </div>
             </div>
           </Card>
+        </section>
+      )}
+      {tab === "addons" && portal && (
+        <section
+          role="tabpanel"
+          id="panel-addons"
+          aria-labelledby="tab-addons"
+          className="mt-5"
+        >
+          <AddonManager
+            subscriptionId={sub.id}
+            revision={revision}
+            onChanged={props.addonsChanged}
+          />
         </section>
       )}
       {tab === "activity" && (

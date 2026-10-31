@@ -193,6 +193,7 @@ export default function Subscriptions({ user }: { user: User }) {
             invoice={() => setConfirmation({ kind: "invoice" })}
             remove={() => setConfirmation({ kind: "delete" })}
             changeState={changeState}
+            addonsChanged={() => setRevision(r => r + 1)}
           />
         ) : (
           <div className="space-y-5">

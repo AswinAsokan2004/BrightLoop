@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Column, ForeignKey, Index, String, Table, Text
+from sqlalchemy import Column, ForeignKey, Index, String, Table, Text, false
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin, IdMixin, TimestampMixin, pg_enum
@@ -27,9 +28,7 @@ subscription_line_taxes = Table(
 
 class Subscription(IdMixin, TimestampMixin, Base):
     __tablename__ = "subscriptions"
-    __table_args__ = (
-        Index("ix_subscriptions_state_next_invoice_date", "state", "next_invoice_date"),
-    )
+    __table_args__ = (Index("ix_subscriptions_state_next_invoice_date", "state", "next_invoice_date"),)
 
     number: Mapped[str] = mapped_column(String(30), unique=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
@@ -86,6 +85,8 @@ class Subscription(IdMixin, TimestampMixin, Base):
 class SubscriptionLine(IdMixin, Base):
     __tablename__ = "subscription_lines"
 
+    is_addon: Mapped[bool] = mapped_column(server_default=false())
+
     subscription_id: Mapped[int] = mapped_column(
         ForeignKey("subscriptions.id", ondelete="CASCADE"), index=True
     )
@@ -113,9 +114,22 @@ class SubscriptionStateLog(IdMixin, CreatedAtMixin, Base):
     from_state: Mapped[SubscriptionState | None] = mapped_column(
         pg_enum(SubscriptionState, "subscription_state")
     )
-    to_state: Mapped[SubscriptionState] = mapped_column(
-        pg_enum(SubscriptionState, "subscription_state")
-    )
+    to_state: Mapped[SubscriptionState] = mapped_column(pg_enum(SubscriptionState, "subscription_state"))
     changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     reason: Mapped[str | None] = mapped_column(String(255))
     changed_by_user: Mapped[User | None] = relationship()
+
+
+class SubscriptionAddonChange(IdMixin, CreatedAtMixin, Base):
+    __tablename__ = "subscription_addon_changes"
+
+    subscription_id: Mapped[int] = mapped_column(
+        ForeignKey("subscriptions.id", ondelete="CASCADE"), index=True
+    )
+    changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    effective_date: Mapped[date]
+    before_items: Mapped[list] = mapped_column(JSONB)
+    after_items: Mapped[list] = mapped_column(JSONB)
+    before_total: Mapped[Decimal]
+    after_total: Mapped[Decimal]
+    changed_by_user: Mapped[User | None] = relationship(foreign_keys=[changed_by])

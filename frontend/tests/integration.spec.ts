@@ -74,9 +74,11 @@ test("admin creates a contract, invoices, collects payment and reloads persisted
   const invoiceRequest=page.waitForResponse(r=>r.url().includes("/invoices")&&r.request().method()==="POST")
   await workspace.getByRole("button",{name:"Invoice next period",exact:true}).click()
   await page.getByRole("dialog",{name:"Generate draft invoice"}).getByRole("button",{name:"Generate draft invoice",exact:true}).click()
-  expect((await invoiceRequest).status()).toBe(201)
+  const invoiceResponse = await invoiceRequest
+  expect(invoiceResponse.status()).toBe(201)
+  const createdInvoice = await invoiceResponse.json()
   await navigate(page,"Invoices")
-  await page.getByRole("row").filter({ hasText: "INV/" }).first().click()
+  await page.getByRole("row").filter({ hasText: createdInvoice.number }).click()
   dialog = page.getByRole("article", { name: "Invoice details" })
   await dialog.getByRole("button", { name: "Confirm invoice", exact: true }).click()
   await page.getByRole("dialog", { name: "Confirm invoice" }).getByRole("button", { name: "Confirm invoice", exact: true }).click()

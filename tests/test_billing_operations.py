@@ -149,3 +149,63 @@ def test_billing_failure_links_retry_and_permissions(client, monkeypatch):
         client.get("/api/billing/preview?run_date=2026-01-03&kind=invalid", headers=headers).status_code
         == 422
     )
+
+
+def test_preview_does_not_reserve_subscription_state(client):
+    headers, _ = authenticate(client)
+    plan = setup_plan(client, headers, auto_close=False)
+    sub = subscription(client, headers, plan)
+    preview = client.get("/api/billing/preview?run_date=2026-01-03", headers=headers).json()
+    assert preview["due_subscriptions"] == 1 and preview["items"][0]["due_periods"] == 3
+    # Someone pauses the subscription after the preview but before confirmation.
+    assert (
+        client.post(
+            f"/api/subscriptions/{sub['id']}/state", headers=headers, json={"state": "paused"}
+        ).status_code
+        == 200
+    )
+    run = client.post("/api/billing/run", headers=headers, json={"run_date": "2026-01-03"}).json()
+    assert run["invoices_created"] == run["errors_count"] == 0
+    assert client.get(f"/api/billing/runs/{run['id']}/invoices", headers=headers).json()["total"] == 0
+    assert client.get(f"/api/subscriptions/{sub['id']}", headers=headers).json()["state"] == "paused"
+
+
+def test_cancelled_period_is_not_recreated_and_exhausted_schedule_can_be_cleared(client):
+    from sqlalchemy import update
+    from app.core.database import get_db
+    from app.models import Subscription
+
+    headers, _ = authenticate(client)
+    plan = setup_plan(client, headers, auto_close=False)
+    sub = subscription(client, headers, plan)
+    response = client.post(f"/api/subscriptions/{sub['id']}/invoices", headers=headers)
+    assert response.status_code == 201, response.text
+    invoice = response.json()
+    assert client.post(f"/api/invoices/{invoice['id']}/cancel", headers=headers).status_code == 200
+    # Reproduce a stale scheduling pointer: uniqueness still protects the cancelled period.
+    get_session = client.app.dependency_overrides[get_db]
+    with next(get_session()) as db:
+        db.execute(
+            update(Subscription)
+            .where(Subscription.id == sub["id"])
+            .values(next_invoice_date=date(2026, 1, 1))
+        )
+        db.commit()
+    preview = client.get("/api/billing/preview?run_date=2026-01-03", headers=headers).json()
+    assert preview["items"][0]["due_periods"] == 3  # periods to check, not promised new invoices
+    run = client.post("/api/billing/run", headers=headers, json={"run_date": "2026-01-03"}).json()
+    assert run["invoices_created"] == 2
+    linked = client.get(f"/api/billing/runs/{run['id']}/invoices", headers=headers).json()
+    assert [row["period_start"] for row in linked["items"]] == ["2026-01-02", "2026-01-03"]
+    assert client.get(f"/api/invoices/{invoice['id']}", headers=headers).json()["state"] == "cancelled"
+    cleanup = client.get("/api/billing/preview?run_date=2026-01-10", headers=headers).json()
+    assert cleanup["due_subscriptions"] == 1 and cleanup["items"][0]["due_periods"] == 0
+    assert cleanup["items"][0]["first_period_end"] is None
+    cleared = client.post("/api/billing/run", headers=headers, json={"run_date": "2026-01-10"}).json()
+    assert cleared["invoices_created"] == 0
+    final = client.get(f"/api/subscriptions/{sub['id']}", headers=headers).json()
+    assert final["next_invoice_date"] is None and final["state"] == "active"
+    assert (
+        client.get("/api/billing/preview?run_date=2026-01-10", headers=headers).json()["due_subscriptions"]
+        == 0
+    )
